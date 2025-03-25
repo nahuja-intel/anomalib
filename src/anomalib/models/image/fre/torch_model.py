@@ -171,6 +171,25 @@ class FREModel(nn.Module):
         features_out = self.fre_model(features_in)
         return features_in, features_out, feature_shapes
 
+    def get_tae_outputs(self, batch: torch.Tensor) -> torch.Tensor:
+        """Extract and reconstruct features from the pretrained network.
+
+        Args:
+            batch (torch.Tensor): Input image batch of shape
+                ``(N, C, H, W)``.
+
+        Returns:
+            tuple[torch.Tensor, torch.Tensor, torch.Tensor]: Tuple containing:
+                - Original features of shape ``(N, D)``
+                - Reconstructed features of shape ``(N, D)``
+                - Original feature tensor shape ``(N, C, H, W)``
+                where ``D`` is the flattened feature dimension.
+        """
+        self.fre_model.eval()
+        features_in = batch
+        features_out = self.fre_model(features_in)
+        return features_out
+
     def forward(self, batch: torch.Tensor) -> InferenceBatch:
         """Generate anomaly predictions for input images.
 

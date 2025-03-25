@@ -129,6 +129,9 @@ class Fre(AnomalibModule):
             latent_dim=latent_dim,
         )
         self.loss_fn = torch.nn.MSELoss()
+        self.features_in_list: list[torch.Tensor] = []
+        self.features_out_list: list[torch.Tensor] = []
+        self.batch_idx = 0
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
         """Configure optimizers.
@@ -137,6 +140,11 @@ class Fre(AnomalibModule):
             torch.optim.Optimizer: Adam optimizer for training the model.
         """
         return optim.Adam(params=self.model.fre_model.parameters(), lr=1e-3)
+
+    def on_train_epoch_start(self, *args, **kwargs):
+        del args, kwargs
+        self.batch_idx = 0
+        return
 
     def training_step(self, batch: Batch, *args, **kwargs) -> STEP_OUTPUT:
         """Perform the training step of FRE.
@@ -154,10 +162,25 @@ class Fre(AnomalibModule):
             STEP_OUTPUT: Dictionary containing the loss value.
         """
         del args, kwargs  # These variables are not used.
-        features_in, features_out, _ = self.model.get_features(batch.image)
+        # features_in, features_out, _ = self.model.get_features(batch.image)
+
+        if self.current_epoch == 0:
+            features_in, features_out, _ = self.model.get_features(batch.image)
+            self.features_in_list.append(features_in)
+        else:
+            features_in = self.features_in[self.batch_idx:self.batch_idx+len(batch)]
+            features_out = self.model.get_tae_outputs(features_in)
+        
         loss = self.loss_fn(features_in, features_out)
         self.log("train_loss", loss.item(), on_epoch=True, prog_bar=True, logger=True)
+        self.batch_idx += len(batch)
         return {"loss": loss}
+    
+    def on_train_epoch_end(self, *args, **kwargs):
+        del args, kwargs
+        if self.current_epoch == 0:
+            self.features_in = torch.vstack(self.features_in_list).detach()
+        return
 
     def validation_step(self, batch: Batch, *args, **kwargs) -> STEP_OUTPUT:
         """Perform the validation step of FRE.
